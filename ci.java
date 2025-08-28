@@ -1,7 +1,7 @@
 import java.io.*;
 import java.util.*;
 
-public class TaskManager {
+public class ci {
     private static class Task implements Serializable {
         private final int id;
         private final String description;
@@ -22,7 +22,7 @@ public class TaskManager {
     private List<Task> tasks;
     private final String filePath;
 
-    public TaskManager(String filePath) {
+    public ci(String filePath) {
         this.tasks = new ArrayList<>();
         this.filePath = filePath;
         loadTasks();
@@ -98,7 +98,7 @@ public class TaskManager {
     }
 
     public static void main(String[] args) {
-        TaskManager manager = new TaskManager("tasks.dat");
+        ci manager = new ci("tasks.dat");
         manager.runTests(); // Run tests
         manager.addTask("Complete DevOps lab");
         manager.addTask("Study CI/CD pipelines");
