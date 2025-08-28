@@ -4,14 +4,15 @@ pipeline {
         stage('Build') {
             steps {
                 echo 'Building the project...'
-                sh 'javac ci.java'  // Compile Java code
+                sh 'javac ci.java'  
             }
         }
         stage('Test') {
             steps {
                 echo 'Testing the project...'
-                sh 'java ci'  // Run Java program
+                sh 'java ci'  
             }
         }
     }
 }
+
