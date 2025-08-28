@@ -1,56 +1,109 @@
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.*;
+import javax.imageio.ImageIO;
 
 public class ci {
-    private static class Task implements Serializable {
+    private static class ImageTask implements Serializable {
         private final int id;
-        private final String description;
-        private boolean isCompleted;
+        private final String imagePath;
+        private boolean isProcessed;
+        private double processingTime;
+        private transient BufferedImage image; // Not serialized
+        private int[] pixelData; // For serialization
 
-        public Task(int id, String description) {
+        public ImageTask(int id, String imagePath) {
             this.id = id;
-            this.description = description;
-            this.isCompleted = false;
+            this.imagePath = imagePath;
+            this.isProcessed = false;
+            this.processingTime = 0.0;
         }
 
-        public void markAsCompleted() { this.isCompleted = true; }
-        public String toString() {
-            return "Task{id=" + id + ", description='" + description + "', completed=" + isCompleted + "}";
+        public int getId() { return id; }
+        public String getImagePath() { return imagePath; }
+        public boolean isProcessed() { return isProcessed; }
+
+        public void processImage() {
+            long startTime = System.nanoTime();
+            try {
+                // Simulate image acquisition and processing
+                image = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
+                Random rand = new Random();
+                for (int x = 0; x < 100; x++) {
+                    for (int y = 0; y < 100; y++) {
+                        image.setRGB(x, y, rand.nextInt(0xFFFFFF));
+                    }
+                }
+                // Store pixel data for serialization
+                pixelData = image.getRGB(0, 0, 100, 100, null, 0, 100);
+                isProcessed = true;
+                processingTime = (System.nanoTime() - startTime) / 1_000_000.0; // ms
+                System.out.println("Processed image task " + id + " in " + processingTime + " ms");
+            } catch (Exception e) {
+                System.err.println("Error processing image task " + id + ": " + e.getMessage());
+            }
+        }
+
+        public String getStats() {
+            return "Task{id=" + id + ", imagePath='" + imagePath + "', processed=" + isProcessed +
+                   ", time=" + String.format("%.2f", processingTime) + " ms}";
         }
     }
 
-    private List<Task> tasks;
+    private List<ImageTask> tasks;
     private final String filePath;
+    private final ExecutorService executor;
+    private final Map<Integer, Future<?>> runningTasks;
 
     public ci(String filePath) {
         this.tasks = new ArrayList<>();
         this.filePath = filePath;
+        this.executor = Executors.newFixedThreadPool(2); // 2 threads
+        this.runningTasks = new ConcurrentHashMap<>();
         loadTasks();
     }
 
-    public void addTask(String description) {
-        tasks.add(new Task(tasks.size() + 1, description));
+    public void addTask(String imagePath) {
+        ImageTask task = new ImageTask(tasks.size() + 1, imagePath);
+        tasks.add(task);
+        runningTasks.put(task.getId(), executor.submit(task::processImage));
         saveTasks();
     }
 
-    public void markTaskCompleted(int id) {
-        for (Task task : tasks) {
-            if (task.id == id) {
-                task.markAsCompleted();
+    public void cancelTask(int id) {
+        Future<?> future = runningTasks.get(id);
+        if (future != null && !future.isDone()) {
+            future.cancel(true);
+            System.out.println("Cancelled task " + id);
+        }
+        for (ImageTask task : tasks) {
+            if (task.getId() == id) {
+                task.isProcessed = false;
                 saveTasks();
-                return;
+                break;
             }
         }
-        System.out.println("Task with ID " + id + " not found.");
     }
 
     public void listTasks() {
         if (tasks.isEmpty()) {
-            System.out.println("No tasks available.");
+            System.out.println("No image tasks available.");
         } else {
-            for (Task task : tasks) {
-                System.out.println(task);
+            for (ImageTask task : tasks) {
+                System.out.println(task.getStats());
             }
+        }
+    }
+
+    public void shutdown() {
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
         }
     }
 
@@ -66,43 +119,51 @@ public class ci {
         File file = new File(filePath);
         if (file.exists()) {
             try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
-                tasks = (List<Task>) ois.readObject();
+                tasks = (List<ImageTask>) ois.readObject();
             } catch (IOException | ClassNotFoundException e) {
                 System.err.println("Error loading tasks: " + e.getMessage());
             }
         }
     }
 
-    // Built-in test method to simulate unit tests without JUnit
     public void runTests() {
         System.out.println("Running tests...");
-        tasks.clear(); // Reset for testing
-        addTask("Test task");
-        if (tasks.size() == 1 && tasks.get(0).description.equals("Test task")) {
+        tasks.clear();
+        addTask("test1.png");
+        if (tasks.size() == 1 && tasks.get(0).getImagePath().equals("test1.png")) {
             System.out.println("Test 1: Add task - PASSED");
         } else {
             System.out.println("Test 1: Add task - FAILED");
         }
-        markTaskCompleted(1);
-        if (tasks.get(0).isCompleted) {
-            System.out.println("Test 2: Mark task completed - PASSED");
-        } else {
-            System.out.println("Test 2: Mark task completed - FAILED");
+        try {
+            runningTasks.get(1).get(2, TimeUnit.SECONDS); // Wait for processing
+            if (tasks.get(0).isProcessed()) {
+                System.out.println("Test 2: Process image - PASSED");
+            } else {
+                System.out.println("Test 2: Process image - FAILED");
+            }
+        } catch (Exception e) {
+            System.out.println("Test 2: Process image - FAILED (" + e.getMessage() + ")");
         }
-        addTask("Another task");
-        if (tasks.size() == 2) {
-            System.out.println("Test 3: List tasks - PASSED");
+        cancelTask(1);
+        if (!tasks.get(0).isProcessed()) {
+            System.out.println("Test 3: Cancel task - PASSED");
         } else {
-            System.out.println("Test 3: List tasks - FAILED");
+            System.out.println("Test 3: Cancel task - FAILED");
         }
     }
 
     public static void main(String[] args) {
-        ci manager = new ci("tasks.dat");
-        manager.runTests(); // Run tests
-        manager.addTask("Complete DevOps lab");
-        manager.addTask("Study CI/CD pipelines");
-        manager.markTaskCompleted(1);
-        manager.listTasks(); // Display tasks
+        ci scheduler = new ci("image_tasks.dat");
+        scheduler.runTests();
+        scheduler.addTask("lab_image1.png");
+        scheduler.addTask("lab_image2.png");
+        try {
+            Thread.sleep(1000); // Wait for tasks to process
+        } catch (InterruptedException e) {
+            System.err.println("Interrupted: " + e.getMessage());
+        }
+        scheduler.listTasks();
+        scheduler.shutdown();
     }
 }
