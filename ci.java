@@ -1,169 +1,121 @@
-import java.awt.image.BufferedImage;
 import java.io.*;
-import java.util.*;
-import java.util.concurrent.*;
+import java.net.URL;
+import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
+import java.util.*;
 
 public class ci {
-    private static class ImageTask implements Serializable {
-        private final int id;
-        private final String imagePath;
-        private boolean isProcessed;
-        private double processingTime;
-        private transient BufferedImage image; // Not serialized
-        private int[] pixelData; // For serialization
+    static class Task implements Serializable {
+        final int id;
+        final String imgPath;
+        boolean done;
+        double time;
 
-        public ImageTask(int id, String imagePath) {
+        Task(int id, String imgPath) {
             this.id = id;
-            this.imagePath = imagePath;
-            this.isProcessed = false;
-            this.processingTime = 0.0;
+            this.imgPath = imgPath;
         }
 
-        public int getId() { return id; }
-        public String getImagePath() { return imagePath; }
-        public boolean isProcessed() { return isProcessed; }
-
-        public void processImage() {
-            long startTime = System.nanoTime();
+        void process() {
+            long start = System.nanoTime();
             try {
-                // Simulate image acquisition and processing
-                image = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
-                Random rand = new Random();
-                for (int x = 0; x < 100; x++) {
-                    for (int y = 0; y < 100; y++) {
-                        image.setRGB(x, y, rand.nextInt(0xFFFFFF));
+                // Download image from GitHub raw URL
+                URL url = new URL("https://raw.githubusercontent.com/Cherry28831/my-ci-project/main/" + imgPath);
+                BufferedImage img = ImageIO.read(url);
+                time = (System.nanoTime() - start) / 1_000_000.0;
+                done = true;
+                // Convert to ASCII for terminal
+                System.out.println("Processed image task " + id + " in " + String.format("%.2f", time) + " ms");
+                for (int y = 0; y < Math.min(img.getHeight(), 20); y += 2) {
+                    for (int x = 0; x < Math.min(img.getWidth(), 40); x++) {
+                        int rgb = img.getRGB(x, y);
+                        System.out.print(rgb > 0xFF555555 ? "." : "#");
                     }
+                    System.out.println();
                 }
-                // Store pixel data for serialization
-                pixelData = image.getRGB(0, 0, 100, 100, null, 0, 100);
-                isProcessed = true;
-                processingTime = (System.nanoTime() - startTime) / 1_000_000.0; // ms
-                System.out.println("Processed image task " + id + " in " + processingTime + " ms");
             } catch (Exception e) {
-                System.err.println("Error processing image task " + id + ": " + e.getMessage());
+                System.err.println("Error processing image " + id + ": " + e.getMessage());
             }
         }
 
-        public String getStats() {
-            return "Task{id=" + id + ", imagePath='" + imagePath + "', processed=" + isProcessed +
-                   ", time=" + String.format("%.2f", processingTime) + " ms}";
+        String stats() {
+            return "Task{id=" + id + ", imagePath='" + imgPath + "', processed=" + done + ", time=" + String.format("%.2f", time) + " ms}";
         }
     }
 
-    private List<ImageTask> tasks;
-    private final String filePath;
-    private final ExecutorService executor;
-    private final Map<Integer, Future<?>> runningTasks;
+    List<Task> tasks = new ArrayList<>();
+    final String file;
 
-    public ci(String filePath) {
-        this.tasks = new ArrayList<>();
-        this.filePath = filePath;
-        this.executor = Executors.newFixedThreadPool(2); // 2 threads
-        this.runningTasks = new ConcurrentHashMap<>();
-        loadTasks();
+    public ci(String file) {
+        this.file = file;
+        load();
     }
 
-    public void addTask(String imagePath) {
-        ImageTask task = new ImageTask(tasks.size() + 1, imagePath);
-        tasks.add(task);
-        runningTasks.put(task.getId(), executor.submit(task::processImage));
-        saveTasks();
+    void add(String imgPath) {
+        tasks.add(new Task(tasks.size() + 1, imgPath));
+        save();
     }
 
-    public void cancelTask(int id) {
-        Future<?> future = runningTasks.get(id);
-        if (future != null && !future.isDone()) {
-            future.cancel(true);
-            System.out.println("Cancelled task " + id);
-        }
-        for (ImageTask task : tasks) {
-            if (task.getId() == id) {
-                task.isProcessed = false;
-                saveTasks();
-                break;
+    void complete(int id) {
+        for (Task t : tasks) {
+            if (t.id == id) {
+                t.process();
+                save();
+                return;
             }
         }
+        System.out.println("Task with ID " + id + " not found.");
     }
 
-    public void listTasks() {
-        if (tasks.isEmpty()) {
-            System.out.println("No image tasks available.");
-        } else {
-            for (ImageTask task : tasks) {
-                System.out.println(task.getStats());
-            }
-        }
+    void list() {
+        if (tasks.isEmpty()) System.out.println("No image tasks available.");
+        else for (Task t : tasks) System.out.println(t.stats());
     }
 
-    public void shutdown() {
-        executor.shutdown();
-        try {
-            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
-                executor.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            executor.shutdownNow();
-        }
-    }
-
-    private void saveTasks() {
-        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filePath))) {
-            oos.writeObject(tasks);
+    void save() {
+        try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(file))) {
+            out.writeObject(tasks);
         } catch (IOException e) {
             System.err.println("Error saving tasks: " + e.getMessage());
         }
     }
 
-    private void loadTasks() {
-        File file = new File(filePath);
-        if (file.exists()) {
-            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
-                tasks = (List<ImageTask>) ois.readObject();
+    void load() {
+        File f = new File(file);
+        if (f.exists()) {
+            try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(f))) {
+                tasks = (List<Task>) in.readObject();
             } catch (IOException | ClassNotFoundException e) {
                 System.err.println("Error loading tasks: " + e.getMessage());
             }
         }
     }
 
-    public void runTests() {
+    void test() {
         System.out.println("Running tests...");
         tasks.clear();
-        addTask("test1.png");
-        if (tasks.size() == 1 && tasks.get(0).getImagePath().equals("test1.png")) {
+        add("test.png");
+        complete(1);
+        if (tasks.size() == 1 && tasks.get(0).imgPath.equals("test.png"))
             System.out.println("Test 1: Add task - PASSED");
-        } else {
+        else
             System.out.println("Test 1: Add task - FAILED");
-        }
-        try {
-            runningTasks.get(1).get(2, TimeUnit.SECONDS); // Wait for processing
-            if (tasks.get(0).isProcessed()) {
-                System.out.println("Test 2: Process image - PASSED");
-            } else {
-                System.out.println("Test 2: Process image - FAILED");
-            }
-        } catch (Exception e) {
-            System.out.println("Test 2: Process image - FAILED (" + e.getMessage() + ")");
-        }
-        cancelTask(1);
-        if (!tasks.get(0).isProcessed()) {
-            System.out.println("Test 3: Cancel task - PASSED");
-        } else {
-            System.out.println("Test 3: Cancel task - FAILED");
-        }
+        if (tasks.get(0).done)
+            System.out.println("Test 2: Process image - PASSED");
+        else
+            System.out.println("Test 2: Process image - FAILED");
+        add("test.png");
+        if (tasks.size() == 2)
+            System.out.println("Test 3: List tasks - PASSED");
+        else
+            System.out.println("Test 3: List tasks - FAILED");
     }
 
     public static void main(String[] args) {
-        ci scheduler = new ci("image_tasks.dat");
-        scheduler.runTests();
-        scheduler.addTask("lab_image1.png");
-        scheduler.addTask("lab_image2.png");
-        try {
-            Thread.sleep(1000); // Wait for tasks to process
-        } catch (InterruptedException e) {
-            System.err.println("Interrupted: " + e.getMessage());
-        }
-        scheduler.listTasks();
-        scheduler.shutdown();
+        ci m = new ci("tasks.dat");
+        m.test();
+        m.add("test.png");
+        m.complete(1);
+        m.list();
     }
 }
