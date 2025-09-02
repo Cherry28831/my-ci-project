@@ -1,30 +1,49 @@
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.URL;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.text.PDFTextStripper;
 
 public class ci {
     public static void main(String[] args) {
-        try {
-            URL pdfUrl = new URL("https://raw.githubusercontent.com/Cherry28831/my-ci-project/main/document.pdf");
-            File tempFile = File.createTempFile("document", ".pdf");
-            try (InputStream in = pdfUrl.openStream(); FileOutputStream out = new FileOutputStream(tempFile)) {
-                byte[] buffer = new byte[1024];
-                int bytesRead;
-                while ((bytesRead = in.read(buffer)) != -1) {
-                    out.write(buffer, 0, bytesRead);
-                }
-            }
-            try (PDDocument doc = PDDocument.load(tempFile)) {
-                PDFTextStripper stripper = new PDFTextStripper();
-                stripper.setStartPage(1);
-                stripper.setEndPage(1);
-                System.out.println("First Page Content:");
-                System.out.println(stripper.getText(doc));
-            }
-            tempFile.delete();
-        } catch (IOException e) {
-            System.err.println("Error processing PDF: " + e.getMessage());
+        String[] images = {"1.jpg", "2.jpg"};
+        for (String imgPath : images) {
+            processImage(imgPath, "ascii"); // Force ASCII output
         }
+    }
+    private static void processImage(String imgPath, String option) {
+        try {
+            URL imageUrl = new URL("https://raw.githubusercontent.com/Cherry28831/my-ci-project/main/" + imgPath);
+            BufferedImage image = ImageIO.read(imageUrl);
+            System.out.println("Image Acquisition Successful!");
+            System.out.println("Image Path: " + imgPath);
+            System.out.println("Width: " + image.getWidth() + " pixels");
+            System.out.println("Height: " + image.getHeight() + " pixels");
+            if (option.equalsIgnoreCase("ascii")) {
+                System.out.println("\nASCII Representation:");
+                printAsciiArt(image, 80); // Increased to 80 for better detail
+            }
+        } catch (IOException e) {
+            System.out.println("Error loading image " + imgPath + ": " + e.getMessage());
+        }
+    }
+    private static void printAsciiArt(BufferedImage image, int outputWidth) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        int outputHeight = (int) (height * ((double) outputWidth / width) / 2);
+        for (int y = 0; y < outputHeight; y++) {
+            StringBuilder row = new StringBuilder();
+            for (int x = 0; x < outputWidth; x++) {
+                int srcX = x * width / outputWidth;
+                int srcY = y * height / outputHeight;
+                int rgb = image.getRGB(srcX, srcY);
+                int gray = ((rgb >> 16) & 0xFF + (rgb >> 8) & 0xFF + rgb & 0xFF) / 3;
+                row.append(getAsciiChar(gray));
+            }
+            System.out.println(row);
+        }
+    }
+    private static char getAsciiChar(int gray) {
+        char[] asciiChars = { '█', '▒', '░', '.', ' ' };
+        return asciiChars[gray * (asciiChars.length - 1) / 255];
     }
 }
