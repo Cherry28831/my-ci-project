@@ -19,22 +19,31 @@ public class ci {
         void process() {
             long start = System.nanoTime();
             try {
-                // Download image from GitHub raw URL
                 URL url = new URL("https://raw.githubusercontent.com/Cherry28831/my-ci-project/main/" + imgPath);
                 BufferedImage img = ImageIO.read(url);
                 time = (System.nanoTime() - start) / 1_000_000.0;
                 done = true;
                 System.out.println("Processed image task " + id + " (" + imgPath + ") in " + String.format("%.2f", time) + " ms");
-                // Convert to ASCII (40x20 max for readability)
-                for (int y = 0; y < Math.min(img.getHeight(), 20); y += 2) {
-                    for (int x = 0; x < Math.min(img.getWidth(), 40); x++) {
-                        int rgb = img.getRGB(x, y);
-                        System.out.print(rgb > 0xFF555555 ? "." : "#");
-                    }
-                    System.out.println();
-                }
+                System.out.println("Width: " + img.getWidth() + " pixels, Height: " + img.getHeight() + " pixels");
+                System.out.println("ASCII Representation:");
+                printAscii(img);
             } catch (Exception e) {
                 System.err.println("Error processing image " + id + ": " + e.getMessage());
+            }
+        }
+
+        private void printAscii(BufferedImage img) {
+            int w = img.getWidth(), h = img.getHeight();
+            int outW = Math.min(w, 60), outH = Math.min(h, (int) (h * ((double) outW / w) / 2));
+            for (int y = 0; y < outH; y++) {
+                StringBuilder row = new StringBuilder();
+                for (int x = 0; x < outW; x++) {
+                    int srcX = x * w / outW, srcY = y * h / outH;
+                    int rgb = img.getRGB(srcX, srcY);
+                    int gray = ((rgb >> 16) & 0xFF + (rgb >> 8) & 0xFF + rgb & 0xFF) / 3;
+                    row.append("█▒░. ".charAt(gray * 4 / 255));
+                }
+                System.out.println(row);
             }
         }
 
