@@ -6,7 +6,6 @@ import org.apache.pdfbox.text.PDFTextStripper;
 public class ci {
     public static void main(String[] args) {
         try {
-            // Download PDF from GitHub raw URL
             URL pdfUrl = new URL("https://raw.githubusercontent.com/Cherry28831/my-ci-project/main/document.pdf");
             File tempFile = File.createTempFile("document", ".pdf");
             try (InputStream in = pdfUrl.openStream(); FileOutputStream out = new FileOutputStream(tempFile)) {
@@ -16,7 +15,6 @@ public class ci {
                     out.write(buffer, 0, bytesRead);
                 }
             }
-            // Load and extract first page
             try (PDDocument doc = PDDocument.load(tempFile)) {
                 PDFTextStripper stripper = new PDFTextStripper();
                 stripper.setStartPage(1);
