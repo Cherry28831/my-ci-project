@@ -23,18 +23,20 @@ public class ci {
                 BufferedImage img = ImageIO.read(url);
                 time = (System.nanoTime() - start) / 1_000_000.0;
                 done = true;
-                System.out.println("Processed image task " + id + " (" + imgPath + ") in " + String.format("%.2f", time) + " ms");
-                System.out.println("Width: " + img.getWidth() + " pixels, Height: " + img.getHeight() + " pixels");
+                System.out.println("Image Acquisition Successful!");
+                System.out.println("Image Path: " + imgPath);
+                System.out.println("Width: " + img.getWidth() + " pixels");
+                System.out.println("Height: " + img.getHeight() + " pixels");
                 System.out.println("ASCII Representation:");
                 printAscii(img);
             } catch (Exception e) {
-                System.err.println("Error processing image " + id + ": " + e.getMessage());
+                System.err.println("Error loading image " + id + ": " + e.getMessage());
             }
         }
 
         private void printAscii(BufferedImage img) {
             int w = img.getWidth(), h = img.getHeight();
-            int outW = Math.min(w, 60), outH = Math.min(h, (int) (h * ((double) outW / w) / 2));
+            int outW = Math.min(w, 60), outH = (int) (h * ((double) outW / w) / 2);
             for (int y = 0; y < outH; y++) {
                 StringBuilder row = new StringBuilder();
                 for (int x = 0; x < outW; x++) {
