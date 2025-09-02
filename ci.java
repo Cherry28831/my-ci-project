@@ -24,8 +24,8 @@ public class ci {
                 BufferedImage img = ImageIO.read(url);
                 time = (System.nanoTime() - start) / 1_000_000.0;
                 done = true;
-                // Convert to ASCII for terminal
-                System.out.println("Processed image task " + id + " in " + String.format("%.2f", time) + " ms");
+                System.out.println("Processed image task " + id + " (" + imgPath + ") in " + String.format("%.2f", time) + " ms");
+                // Convert to ASCII (40x20 max for readability)
                 for (int y = 0; y < Math.min(img.getHeight(), 20); y += 2) {
                     for (int x = 0; x < Math.min(img.getWidth(), 40); x++) {
                         int rgb = img.getRGB(x, y);
@@ -94,9 +94,9 @@ public class ci {
     void test() {
         System.out.println("Running tests...");
         tasks.clear();
-        add("test.png");
+        add("1.jpg");
         complete(1);
-        if (tasks.size() == 1 && tasks.get(0).imgPath.equals("test.png"))
+        if (tasks.size() == 1 && tasks.get(0).imgPath.equals("1.jpg"))
             System.out.println("Test 1: Add task - PASSED");
         else
             System.out.println("Test 1: Add task - FAILED");
@@ -104,7 +104,7 @@ public class ci {
             System.out.println("Test 2: Process image - PASSED");
         else
             System.out.println("Test 2: Process image - FAILED");
-        add("test.png");
+        add("2.jpg");
         if (tasks.size() == 2)
             System.out.println("Test 3: List tasks - PASSED");
         else
@@ -114,8 +114,10 @@ public class ci {
     public static void main(String[] args) {
         ci m = new ci("tasks.dat");
         m.test();
-        m.add("test.png");
+        m.add("1.jpg");
+        m.add("2.jpg");
         m.complete(1);
+        m.complete(2);
         m.list();
     }
 }
